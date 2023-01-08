@@ -90,10 +90,8 @@ begin
 		swreset <= '1';
 		YZSWAP <= '1';
 		JOYSWAP <= '0';
-	else
-	
-	  if rising_edge(kbdsign) then
-	     
+	elsif rising_edge(CLK) then
+	   if kbdsign = '1' then
 		  --kbdsreg<=kbdsign;
 	  	  
 	     --if kbdsreg='0' and kbdsign='1' then
