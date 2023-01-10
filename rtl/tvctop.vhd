@@ -199,7 +199,7 @@ begin
     (speedsel(1) = '1' and clken12_5 = '1')     -- 12.5M
   else '0';
 
-  crtcsel <= '1' when iow='0' and cpua(7 downto 4)="0111" and clken='1' else '0'; -- out 70h/71h
+  crtcsel <= '1' when (ior='0' or iow='0') and cpua(7 downto 4)="0111" and clken='1' else '0'; -- in/out 70h/71h
   
   clken <= not dn_go;
   
@@ -430,7 +430,7 @@ begin
 		end if;
 	 end if;
   end process;
-  
+
   HS <= hspal;
   VS <= VBLANK;
 
@@ -445,10 +445,10 @@ begin
 --			  x"ff";
 
 			  vramdo when nvram='0' else
+			  crtcdo when crtcsel='1' else
 			  indata0 when ior='0' else
 			  ramdo when np/="1111" or nrom='0' or nrom5='0' else
 			  x"ff";
-			  
 
   -- IGRB
   R <= "111000" when vrgbi(3)='1' and vrgbi(1)='1' else
