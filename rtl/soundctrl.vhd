@@ -67,20 +67,21 @@ begin
   end if;
 end process;
 
-process(reset,clk,instart,freg)
+process(clk)
 begin
   if rising_edge(clk) then
-    if reset = '0' or instart = '1' then -- active low reset or instart active high reloads the counter
-        fcnt <= '0' & freg;
-        fdiv <= "0000";
-    elsif sndclk_en = '1' then
+    if sndclk_en = '1' then
         -- fcnt(12) is the "carry" of the counter, so it reloads at 4096, otherwise counts upwards
-        if fcnt(12)='1' then
+        -- active low reset or instart active high reloads the counter
+        if fcnt(12)='1' or reset='0' or instart='1' then
           fcnt <= '0' & freg;
           fdiv <= fdiv + 1;
         else
           fcnt <= fcnt + 1;
         end if;
+    end if;
+    if reset='0' or instart='1' then
+        fdiv <= "0000";
     end if;
   end if;
 end process;
@@ -89,7 +90,7 @@ end process;
 instart <= '1' when ior='0' and a(7 downto 3)="01011" and a(1 downto 0)="11" and clken='1' else '0';
 
 sndint <= snd_ei and fdiv(3); -- active high, 1 if int req.
-aout <= vol & "0000" when snd_ena='1' and fdiv(3)='1' else "00000000"; -- sound output
+aout <= "00000000" when snd_ena='1' and fdiv(3)='1' else vol & "0000"; -- sound output
 
 end Behavioral;
 
