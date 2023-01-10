@@ -144,7 +144,8 @@ tvctop tvctop (
 	.DN_DATA(ioctl_dout),
 	.DN_IDX(ioctl_index),
 	.DN_CLKREF(ioctl_clkref),
-          
+
+	// Video output
 	.R(R),
 	.G(G),
 	.B(B),
@@ -153,8 +154,10 @@ tvctop tvctop (
 	.HBLANK(HBlank),
 	.VBLANK(VBlank),
 
+	// Audio output
 	.AOUT(audio),
 
+	// HID
 	.PS2CLK(kbdclk),
 	.PS2DAT(kbddat),
 	.JOY0(joyswap ? joystick_1[7:0] : joystick_0[7:0]),
@@ -182,8 +185,8 @@ mist_video #(.COLOR_DEPTH(6), .SD_HCNT_WIDTH(12)) mist_video(
 	.R              ( blankn ? R : 0   ),
 	.G              ( blankn ? G : 0   ),
 	.B              ( blankn ? B : 0   ),
-	.HSync          ( ~HSync           ),
-	.VSync          ( ~VSync           ),
+	.HSync          ( HSync            ),
+	.VSync          ( VSync            ),
 	.VGA_R          ( VGA_R            ),
 	.VGA_G          ( VGA_G            ),
 	.VGA_B          ( VGA_B            ),

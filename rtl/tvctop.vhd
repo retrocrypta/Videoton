@@ -37,7 +37,7 @@ entity tvctop is
          DN_DATA : in STD_LOGIC_VECTOR(7 downto 0);
           DN_IDX : in STD_LOGIC_VECTOR(7 downto 0);
        DN_CLKREF : out STD_LOGIC; -- DN_WR must be valid after the next cycle of DN_CLKREF
-          
+
                R : out STD_LOGIC_VECTOR(5 downto 0);
                G : out STD_LOGIC_VECTOR(5 downto 0);
                B : out STD_LOGIC_VECTOR(5 downto 0);
@@ -126,6 +126,7 @@ signal vramdo : std_logic_vector(7 downto 0);
 signal  vrgbi : std_logic_vector(3 downto 0);
 
 signal hsreg,vsreg : std_logic;
+signal hscnt : std_logic_vector(5 downto 0);
 signal hblankctr : std_logic_vector(7 downto 0);
 signal vblankctr : std_logic_vector(3 downto 0);
 
@@ -386,21 +387,26 @@ begin
   begin
     if rising_edge( clk50m ) then
       if clken12_5 = '1' then
-	    hsreg<=crtc_hs;
+        hsreg<=crtc_hs;
+
+        if hsreg='1' and crtc_hs='0' then
+          hscnt <= "110010"; -- 50 cycles / 4 us hsync time (LS123 with R=10k C=1n)
+          hspal <= '1';
+        elsif hscnt /= 0 then
+          hscnt <= hscnt - 1;
+        else
+          hspal <= '0';
+        end if;
 
         if hsreg='0' and crtc_hs='1' then
           hblankctr <= "00000000";
           hblank<='1';
-          hspal<='0';
         end if;
 
         if hblank='1' then
           hblankctr <= hblankctr + 1;
           if hblankctr=150 then --  300T@12.5MHz 12us blanking time
             hblank<='0';
-          end if;
-          if hblankctr=50 then -- 4 us hsync time
-            hspal<='1'; 
           end if;
         end if;
       end if;    
@@ -411,8 +417,8 @@ begin
   process(crtc_hs)
   begin
     if rising_edge(crtc_hs) then
-      vsreg<=vs;
-		if vsreg='0' and vs='1' then
+      vsreg<=crtc_vs;
+		if vsreg='0' and crtc_vs='1' then
 		  vblankctr <= "0000";
 		  VBLANK<='1';
 		end if;		
@@ -426,7 +432,7 @@ begin
   end process;
   
   HS <= hspal;
-  VS <= crtc_vs;
+  VS <= VBLANK;
 
   cpudi <= --romdo when nrom='0' else
            --extromdo when nrom5='0' else
