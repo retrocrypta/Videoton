@@ -33,18 +33,21 @@ module TVC_MiST(
 
 localparam CONF_STR = {
 	"TVC;CAS;",
-	"O12,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
-	"O34,CPU Speed,3.125MHz,6.25MHz,12.5MHz;",
-	"O5,Joystick swap,Off,On;",
-//	"O6,Composite Blend,Off,On;",
+	"F,ROMCRT,Load Cartridge;",
+	"O23,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
+	"O45,CPU Speed,3.125MHz,6.25MHz,12.5MHz;",
+	"O6,Joystick Swap,Off,On;",
+//	"O7,Composite Blend,Off,On;",
+	"T1,Cart Unload;",
 	"T0,Reset;",
 	"V,v1.0.",`BUILD_DATE
 };
 
-wire  [1:0] scanlines = status[2:1];
-wire  [1:0] speedsel  = status[4:3];
-wire        joyswap   = status[5];
-wire        blend     = status[6];
+wire        cart_unload = status[1];
+wire  [1:0] scanlines = status[3:2];
+wire  [1:0] speedsel  = status[5:4];
+wire        joyswap   = status[6];
+wire        blend     = status[7];
 
 wire CLK_75M, CLK_50M;
 wire pll_locked;
@@ -142,8 +145,9 @@ tvctop tvctop (
 	.DN_WR(ioctl_wr),
 	.DN_ADDR(ioctl_addr),
 	.DN_DATA(ioctl_dout),
-	.DN_IDX(ioctl_index),
+	.DN_IDX(ioctl_index[5:0]),
 	.DN_CLKREF(ioctl_clkref),
+	.CART_UNLOAD(cart_unload),
 
 	// Video output
 	.R(R),

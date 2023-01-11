@@ -35,8 +35,9 @@ entity tvctop is
            DN_WR : in STD_LOGIC;
          DN_ADDR : in STD_LOGIC_VECTOR(24 downto 0);
          DN_DATA : in STD_LOGIC_VECTOR(7 downto 0);
-          DN_IDX : in STD_LOGIC_VECTOR(7 downto 0);
+          DN_IDX : in STD_LOGIC_VECTOR(5 downto 0);
        DN_CLKREF : out STD_LOGIC; -- DN_WR must be valid after the next cycle of DN_CLKREF
+     CART_UNLOAD : in STD_LOGIC;
 
                R : out STD_LOGIC_VECTOR(5 downto 0);
                G : out STD_LOGIC_VECTOR(5 downto 0);
@@ -161,12 +162,13 @@ signal   romram : std_logic :='0';
 signal cpu_ram_wr : std_logic;
 signal cpu_ram_rd : std_logic;
 
-signal   rambsel2 : std_logic_vector(1 downto 0);
+signal cart_loaded : std_logic := '0';
+signal rambsel2 : std_logic_vector(4 downto 0);
 signal ledr : std_logic := '1';
 
 begin
 
-  masterres <= swres and pllLocked and (not RESET) and dn_rom;  -- 0 when reset (L active)
+  masterres <= swres and pllLocked and (not RESET) and dn_rom and (not CART_UNLOAD);  -- 0 when reset (L active)
 
   SDRAM_CLK <= clk75m;
 
@@ -447,7 +449,7 @@ begin
 			  vramdo when nvram='0' else
 			  crtcdo when crtcsel='1' else
 			  indata0 when ior='0' else
-			  ramdo when np/="1111" or nrom='0' or nrom5='0' else
+			  ramdo when np/="1111" or nrom='0' or nrom5='0' or (ncart='0' and cart_loaded='1') or nexp(1)='0' or nexp(2)='0' or nexp(3)='0' or nexp(4)='0' else
 			  x"ff";
 
   -- IGRB
@@ -488,40 +490,61 @@ begin
                    oe => ram_oe,
                  dout => ram_dout
     );
-     
+
   ramdo <= ram_dout;
-  
+
+  -- nrom    (16k)
+  -- nrom5    (8k) - duplicated
+  -- nexp1-4 (32k)
+  -- ncart   (16k)
   romram <= not (nrom and nrom5); -- romram=1 if nrom or nrom5 selected (0)
+
+  rambsel2 <= "0100"&cpua(13) when nrom='0' else
+              "01010" when nrom5='0' else
+              "01100" when nexp(1)='0' else
+              "01101" when nexp(2)='0' else
+              "01110" when nexp(3)='0' else
+              "01111" when nexp(4)='0' else
+              "1000"&cpua(13) when ncart='0' else
+              "00"&rambanksel&cpua(13);
   
-  rambsel2 <= "00" when nrom='0' else
-				  "01" when nrom5='0' else
-				  rambanksel;
-  
-  ram_addr <= "00000000" & romram & rambsel2 & cpua(13 downto 0) when dn_go='0' else dn_addr_r;
+  ram_addr <= "0000000" & rambsel2 & cpua(12 downto 0) when dn_go='0' else dn_addr_r;
   ram_din <= cpudo when dn_go='0' else dn_data_r;
-  
+
   cpu_ram_wr <= not (ramsel or cpuwr);
-  cpu_ram_rd <= not ((ramsel and nrom and nrom5) or cpurd);
-  
---  ram_we <= not (ramsel or cpuwr) when dn_go='0' else dn_wr_r;
---  ram_oe <= not (ramsel or cpurd) when dn_go='0' else '0';
+  cpu_ram_rd <= not ((ramsel and nrom and nrom5 and ncart and nexp(1) and nexp(2) and nexp(3) and nexp(4)) or cpurd);
+
   ram_we <= cpu_ram_wr when dn_go='0' else dn_wr_r;
   ram_oe <= cpu_ram_rd when dn_go='0' else '0';
 
-  dn_rom <= '0' when dn_go='1' and dn_idx=0 else '1';
+  dn_rom <= '0' when dn_go='1' and (dn_idx=0 or dn_idx=2) else '1';
   DN_CLKREF <= clken12_5;
 
   LED <= ledr when dn_go='0' else '0'; 	 
+
+  process(CLK50M)
+  begin
+    if rising_edge(CLK50M) then
+      if DN_GO='1' and DN_IDX=2 then
+        cart_loaded <= '1';
+      end if;
+      if CART_UNLOAD = '1' then
+        cart_loaded <= '0';
+      end if;
+    end if;
+  end process;
 
   process(dn_idx, dn_addr, dn_wr, dn_data)
   begin
     dn_wr_r <= '0';
     dn_data_r <= dn_data;
     dn_addr_r <= dn_addr + x"10000";
-    if ((dn_idx/=0 and dn_addr>143) or (dn_idx=0)) then
+    if ((dn_idx=1 and dn_addr>143) or (dn_idx=0) or (dn_idx=2)) then
       dn_wr_r <= dn_wr;
-      if dn_idx/=0 then
-        dn_addr_r <= dn_addr+6495;
+      if dn_idx=1 then
+        dn_addr_r <= dn_addr+6495; -- cas
+      elsif dn_idx=2 then
+        dn_addr_r <= dn_addr + x"20000"; --cart
       end if;
     end if;
   end process;
