@@ -34,6 +34,8 @@ module TVC_MiST(
 localparam CONF_STR = {
 	"TVC;CAS;",
 	"F,ROMCRT,Load Cartridge;",
+	"S0U,DSK,Mount Drive A;",
+	"S1U,DSK,Mount Drive B;",
 	"O23,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
 	"O45,CPU Speed,3.125MHz,6.25MHz,12.5MHz;",
 	"O6,Joystick Swap,Off,On;",
@@ -69,6 +71,21 @@ wire        no_csync;
 wire        kbdclk;
 wire        kbddat;
 
+wire [31:0] sd_lba;
+wire  [1:0] sd_rd;
+wire  [1:0] sd_wr;
+wire        sd_ack;
+wire        sd_ack_conf;
+wire        sd_conf;
+wire        sd_sdhc = 1'b1;
+wire  [7:0] sd_dout;
+wire        sd_dout_strobe;
+wire  [7:0] sd_din;
+wire        sd_din_strobe;
+wire  [8:0] sd_buff_addr;
+wire  [1:0] img_mounted;
+wire [31:0] img_size;
+
 user_io #(
 	.STRLEN(($size(CONF_STR)>>3)),
 	.ROM_DIRECT_UPLOAD(1'b0))
@@ -88,7 +105,23 @@ user_io(
 	.ps2_kbd_data   (kbddat         ),
 	.joystick_0     (joystick_0     ),
 	.joystick_1     (joystick_1     ),
-	.status         (status         )
+	.status         (status         ),
+
+	.clk_sd         ( CLK_50M       ),
+	.sd_lba         ( sd_lba        ),
+	.sd_rd          ( sd_rd         ),
+	.sd_wr          ( sd_wr         ),
+	.sd_ack         ( sd_ack        ),
+	.sd_ack_conf    ( sd_ack_conf   ),
+	.sd_conf        ( sd_conf       ),
+	.sd_sdhc        ( sd_sdhc       ),
+	.sd_dout        ( sd_dout       ),
+	.sd_dout_strobe ( sd_dout_strobe),
+	.sd_din         ( sd_din        ),
+	.sd_din_strobe  ( sd_din_strobe ),
+	.sd_buff_addr   ( sd_buff_addr  ),
+	.img_mounted    ( img_mounted   ),
+	.img_size       ( img_size      )
 	);
 
 wire        ioctl_downl;
@@ -166,6 +199,19 @@ tvctop tvctop (
 	.PS2DAT(kbddat),
 	.JOY0(joyswap ? joystick_1[7:0] : joystick_0[7:0]),
 	.JOY1(joyswap ? joystick_0[7:0] : joystick_1[7:0]),
+
+	.IMG_MOUNTED(img_mounted),
+	.IMG_WP(2'b00),
+	.IMG_SIZE(img_size),
+
+	.SD_LBA(sd_lba),
+	.SD_RD(sd_rd),
+	.SD_WR(sd_wr),
+	.SD_ACK(sd_ack),
+	.SD_BUFF_ADDR(sd_buff_addr),
+	.SD_DOUT(sd_dout),
+	.SD_DIN(sd_din),
+	.SD_DOUT_STROBE(sd_dout_strobe),
 
 	// SDRAM
 	.SDRAM_nCS(SDRAM_nCS),

@@ -54,6 +54,19 @@ entity tvctop is
             JOY0 : in STD_LOGIC_VECTOR(7 downto 0);
             JOY1 : in STD_LOGIC_VECTOR(7 downto 0);
 
+     IMG_MOUNTED : in  std_logic_vector( 1 downto 0);
+          IMG_WP : in  std_logic_vector( 1 downto 0);
+        IMG_SIZE : in  std_logic_vector(31 downto 0); -- in bytes
+
+          SD_LBA : out std_logic_vector(31 downto 0);
+           SD_RD : out std_logic_vector( 1 downto 0);
+           SD_WR : out std_logic_vector( 1 downto 0);
+          SD_ACK : in  std_logic;
+    SD_BUFF_ADDR : in  std_logic_vector( 8 downto 0);
+         SD_DOUT : in  std_logic_vector( 7 downto 0);
+          SD_DIN : out std_logic_vector( 7 downto 0);
+  SD_DOUT_STROBE : in  std_logic;
+
         -- SDRAM
        SDRAM_nCS : out std_logic;                     -- Chip Select
         SDRAM_DQ : inout std_logic_vector(15 downto 0); -- SDRAM Data bus 16 Bits
@@ -101,7 +114,9 @@ signal clkdiv    : std_logic_vector(4 downto 0);
 signal cpua     : std_logic_vector(15 downto 0); 
 signal cpudo    : std_logic_vector(7 downto 0);
 signal cpudi    : std_logic_vector(7 downto 0);
-signal cpuwr,cpurd,cpumreq,cpuiorq,cpunmi,cpuint,cpum1,clken,cpuclk_en : std_logic;
+signal cpuwr,cpurd,cpumreq,cpuiorq,cpunmi,cpuint,cpum1,cpurfsh,clken,cpuclk_en : std_logic;
+signal iorq,memrq : std_logic;
+
 signal clken1_56, clken3_125, clken6_25, clken12_5 : std_logic;
 
 signal nrom,nvram,ncart,nrom5 : std_logic;
@@ -163,8 +178,15 @@ signal cpu_ram_wr : std_logic;
 signal cpu_ram_rd : std_logic;
 
 signal cart_loaded : std_logic := '0';
-signal rambsel2 : std_logic_vector(4 downto 0);
+signal rambsel2 : std_logic_vector(5 downto 0);
 signal ledr : std_logic := '1';
+
+signal hbfdo : std_logic_vector(7 downto 0);
+signal hbf_iosel : std_logic;
+signal hbf_oe : std_logic;
+signal hbf_memrd : std_logic;
+signal hbf_memwr : std_logic;
+signal hbf_mema : std_logic_vector(2 downto 0);
 
 begin
 
@@ -183,11 +205,14 @@ begin
   SDRAM_CKE <= '1';
   SDRAM_DQMH <= sdram_dqm(1);
   SDRAM_DQML <= sdram_dqm(0);   
-  
-  ior <= cpurd or cpuiorq or (not cpum1);
-  iow <= cpuwr or cpuiorq;
-  memr <= cpurd or cpumreq;
-  memw <= cpuwr or cpumreq;
+
+  iorq <= cpuiorq or not cpum1;
+  memrq <= cpumreq or not cpurfsh;
+
+  ior <= cpurd or iorq;
+  iow <= cpuwr or iorq;
+  memr <= cpurd or memrq;
+  memw <= cpuwr or memrq;
   bank <= cpua(15 downto 14);
   ioaddr <= cpua(7 downto 0);
 
@@ -219,7 +244,7 @@ begin
 		IORQ_n  => cpuiorq,
 		RD_n    => cpurd,
 		WR_n    => cpuwr,
-		RFSH_n  => open,
+		RFSH_n  => cpurfsh,
 		HALT_n  => open,
 		BUSAK_n => open,
 		A       => cpua, 
@@ -333,6 +358,39 @@ begin
 	  sndint => sndint,
 		 aout => aout
 	);
+
+  hbf_iosel <= '0' when cpua(7 downto 4) = x"2" else '1';
+
+  -- Floppy controller
+  hbf : entity work.hbf
+    port map(
+          reset => masterres,
+            clk => clk50m,
+      clken12_5 => clken12_5,
+            din => cpudo,
+           dout => hbfdo,
+           iorq => iorq or hbf_iosel,
+          memrq => memrq or nexp(2),
+            rd  => cpurd,
+            wr  => cpuwr,
+           addr => cpua(12 downto 0),
+          memrd => hbf_memrd,
+          memwr => hbf_memwr,
+           mema => hbf_mema,
+
+     img_mounted => IMG_MOUNTED,
+          img_wp => IMG_WP,
+        img_size => IMG_SIZE,
+
+          sd_lba => SD_LBA,
+           sd_rd => SD_RD,
+           sd_wr => SD_WR,
+          sd_ack => SD_ACK,
+    sd_buff_addr => SD_BUFF_ADDR,
+         sd_dout => SD_DOUT,
+          sd_din => SD_DIN,
+  sd_dout_strobe => SD_DOUT_STROBE
+    );
 
   -- I/O read
   process(clk50m)
@@ -448,8 +506,10 @@ begin
 
 			  vramdo when nvram='0' else
 			  crtcdo when crtcsel='1' else
+			  hbfdo when ior='0' and hbf_iosel = '0' else
 			  indata0 when ior='0' else
-			  ramdo when np/="1111" or nrom='0' or nrom5='0' or (ncart='0' and cart_loaded='1') or nexp(1)='0' or nexp(2)='0' or nexp(3)='0' or nexp(4)='0' else
+			  ramdo when np/="1111" or nrom='0' or nrom5='0' or (ncart='0' and cart_loaded='1') or hbf_memrd='0' else
+			  ramdo when np/="1111" or nrom='0' or nrom5='0' or (ncart='0' and cart_loaded='1') else
 			  x"ff";
 
   -- IGRB
@@ -495,24 +555,22 @@ begin
 
   -- nrom    (16k)
   -- nrom5    (8k) - duplicated
-  -- nexp1-4 (32k)
+  -- hbf rom (16k)
+  -- hbf ram (16k)
   -- ncart   (16k)
   romram <= not (nrom and nrom5); -- romram=1 if nrom or nrom5 selected (0)
 
-  rambsel2 <= "0100"&cpua(13) when nrom='0' else
-              "01010" when nrom5='0' else
-              "01100" when nexp(1)='0' else
-              "01101" when nexp(2)='0' else
-              "01110" when nexp(3)='0' else
-              "01111" when nexp(4)='0' else
-              "1000"&cpua(13) when ncart='0' else
-              "00"&rambanksel&cpua(13);
-  
-  ram_addr <= "0000000" & rambsel2 & cpua(12 downto 0) when dn_go='0' else dn_addr_r;
+  rambsel2 <= "0100"&cpua(13 downto 12) when nrom='0' else
+              "01010"&cpua(12) when nrom5='0' else
+              "011"&hbf_mema when hbf_memrd='0' or hbf_memwr='0' else
+              "1000"&cpua(13 downto 12) when ncart='0' else
+              "00"&rambanksel&cpua(13 downto 12);
+
+  ram_addr <= "0000000" & rambsel2 & cpua(11 downto 0) when dn_go='0' else dn_addr_r;
   ram_din <= cpudo when dn_go='0' else dn_data_r;
 
-  cpu_ram_wr <= not (ramsel or cpuwr);
-  cpu_ram_rd <= not ((ramsel and nrom and nrom5 and ncart and nexp(1) and nexp(2) and nexp(3) and nexp(4)) or cpurd);
+  cpu_ram_wr <= not ((ramsel and hbf_memwr) or cpuwr);
+  cpu_ram_rd <= not ((ramsel and nrom and nrom5 and ncart and hbf_memrd) or cpurd);
 
   ram_we <= cpu_ram_wr when dn_go='0' else dn_wr_r;
   ram_oe <= cpu_ram_rd when dn_go='0' else '0';

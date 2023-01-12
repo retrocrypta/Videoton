@@ -8,4 +8,7 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) sdram.v
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) soundctrl.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) tvctop.vhd    ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) videoctrl.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) hbf.vhd       ]
 set_global_assignment -name QIP_FILE  [file join $::quartus(qip_path) T80/T80.qip   ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path)/fdc1772-verilator/fdc1772.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path)/fdc1772-verilator/floppy.v  ]
