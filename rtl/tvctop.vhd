@@ -114,10 +114,11 @@ signal clkdiv    : std_logic_vector(4 downto 0);
 signal cpua     : std_logic_vector(15 downto 0); 
 signal cpudo    : std_logic_vector(7 downto 0);
 signal cpudi    : std_logic_vector(7 downto 0);
-signal cpuwr,cpurd,cpumreq,cpuiorq,cpunmi,cpuint,cpum1,cpurfsh,clken,cpuclk_en : std_logic;
+signal cpuwr,cpurd,cpumreq,cpuiorq,cpunmi,cpuint,cpum1,cpurfsh,clken,cpuclk_en,cpuclk_en_n : std_logic;
 signal iorq,memrq : std_logic;
 
 signal clken1_56, clken3_125, clken6_25, clken12_5 : std_logic;
+signal clken3_125_n, clken6_25_n, clken12_5_n : std_logic;
 
 signal nrom,nvram,ncart,nrom5 : std_logic;
 signal np : std_logic_vector(3 downto 0);
@@ -218,23 +219,33 @@ begin
 
   clken1_56  <= '1' when clkdiv(4 downto 0) = "00000" else '0';
   clken3_125 <= '1' when clkdiv(3 downto 0) = "0000" else '0';
+  clken3_125_n <= '1' when clkdiv(3 downto 0) = "1000" else '0';
   clken6_25  <= '1' when clkdiv(2 downto 0) = "000" else '0';
+  clken6_25_n  <= '1' when clkdiv(2 downto 0) = "100" else '0';
   clken12_5  <= '1' when clkdiv(1 downto 0) = "00" else '0';
+  clken12_5_n  <= '1' when clkdiv(1 downto 0) = "10" else '0';
   cpuclk_en <= '1' when
     (speedsel = "00"   and clken3_125 = '1') or -- 3.125M
     (speedsel = "01"   and clken6_25 = '1') or  -- 6.25M
     (speedsel(1) = '1' and clken12_5 = '1')     -- 12.5M
   else '0';
 
+  cpuclk_en_n <= '1' when
+    (speedsel = "00"   and clken3_125_n = '1') or -- 3.125M
+    (speedsel = "01"   and clken6_25_n = '1') or  -- 6.25M
+    (speedsel(1) = '1' and clken12_5_n = '1')     -- 12.5M
+  else '0';
+
   crtcsel <= '1' when (ior='0' or iow='0') and cpua(7 downto 4)="0111" and clken='1' else '0'; -- in/out 70h/71h
   
   clken <= not dn_go;
   
-  cpu : entity work.T80se
+  cpu : entity work.T80pa
    port map (  
 	   RESET_n => masterres,
-		CLK_n   => clk50m,
-		CLKEN   => cpuclk_en and clken,
+		CLK     => clk50m,
+		CEN_n   => cpuclk_en and clken,
+		CEN_p   => cpuclk_en_n and clken,
 		WAIT_n  => '1',
 		INT_n   => intreq,
 		NMI_n   => '1',

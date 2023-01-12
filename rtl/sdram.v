@@ -26,7 +26,7 @@ module sdram (
 	inout reg [15:0]    sd_data,    // 16 bit bidirectional data bus
 	output reg [12:0]   sd_addr,    // 13 bit multiplexed address bus
 	output reg [1:0]    sd_dqm,     // two byte masks
-	output [1:0]        sd_ba,      // two banks
+	output reg [1:0]    sd_ba,      // two banks
 	output              sd_cs,      // a single chip select
 	output              sd_we,      // write enable
 	output              sd_ras,     // row address select
@@ -110,6 +110,9 @@ assign sd_we  = sd_cmd[0];
 
 wire [12:0] reset_addr = (reset == 13)?13'b0010000000000:MODE;
 reg oe_latch, we_latch;
+reg oe_old, we_old;
+wire oe_next = ~oe_old & oe;
+wire we_next = ~we_old & we;
 
 always @(posedge clk) begin
 	sd_cmd <= CMD_INHIBIT;
@@ -125,11 +128,14 @@ always @(posedge clk) begin
 		end
 	end else begin
 		sd_dqm <= 2'b00;
+		oe_old <= oe;
+		we_old <= we;
 		if(q == STATE_IDLE) begin
-			{oe_latch, we_latch} <= {oe, we};
-			if(we || oe) begin
+			{oe_latch, we_latch} <= {oe_next, we_next};
+			if(we_next || oe_next) begin
 				sd_cmd <= CMD_ACTIVE;
 				sd_addr <= addr[21:9];
+				sd_ba <= addr[23:22];
 			end
 			else sd_cmd <= CMD_AUTO_REFRESH;
 		end else if(q == STATE_CMD_CONT) begin
@@ -145,6 +151,5 @@ always @(posedge clk) begin
 	end
 end
 
-assign sd_ba = addr[23:22];
 
 endmodule
