@@ -150,6 +150,7 @@ signal vblankctr : std_logic_vector(3 downto 0);
 signal indata0 : std_logic_vector(7 downto 0); -- 58 59 5a 5b ... 5F
 
 signal intreq : std_logic:='1';
+signal intreq_d : std_logic:='1';
 signal sndint : std_logic;
 
 signal keyrow : std_logic_vector(3 downto 0);
@@ -443,11 +444,13 @@ begin
   process(clk50m,masterres)
   begin
     if masterres='0' then
-        intreq <= '1';
+      intreq <= '1';
+      intreq_d <= '0';
     elsif rising_edge(clk50m) then
+      intreq_d <= crtccur or sndint;
       if iow='0' and ioaddr=x"07" then
         intreq<='1';
-      elsif (crtccur='1' or sndint='1') and clken='1' then -- cursor or sound interrupt
+      elsif (intreq_d='0' and (crtccur='1' or sndint='1')) and clken='1' then -- cursor or sound interrupt
         intreq<='0'; 
       end if;
     end if;
@@ -520,7 +523,6 @@ begin
 			  hbfdo when ior='0' and hbf_iosel = '0' else
 			  indata0 when ior='0' else
 			  ramdo when np/="1111" or nrom='0' or nrom5='0' or (ncart='0' and cart_loaded='1') or hbf_memrd='0' else
-			  ramdo when np/="1111" or nrom='0' or nrom5='0' or (ncart='0' and cart_loaded='1') else
 			  x"ff";
 
   -- IGRB

@@ -36,7 +36,7 @@ architecture Behavioral of soundctrl is
 
 signal  vol : std_logic_vector( 3 downto 0); -- 4bits volume
 signal freg : std_logic_vector(11 downto 0); -- 12bit freq registe
-signal fcnt : std_logic_vector(12 downto 0); -- 12nit counter + (1 bit carry!)
+signal fcnt : std_logic_vector(11 downto 0); -- 12bit counter
 signal fdiv : std_logic_vector( 3 downto 0); -- constant divider (div by 16)
 
 signal snd_ena : std_logic := '0';
@@ -71,10 +71,9 @@ process(clk)
 begin
   if rising_edge(clk) then
     if sndclk_en = '1' then
-        -- fcnt(12) is the "carry" of the counter, so it reloads at 4096, otherwise counts upwards
-        -- active low reset or instart active high reloads the counter
-        if fcnt(12)='1' or reset='0' or instart='1' then
-          fcnt <= '0' & freg;
+        -- overflow, active low reset or instart active high reloads the counter
+        if fcnt(11 downto 0)=x"FFF" or reset='0' or instart='1' then
+          fcnt <= freg;
           fdiv <= fdiv + 1;
         else
           fcnt <= fcnt + 1;
