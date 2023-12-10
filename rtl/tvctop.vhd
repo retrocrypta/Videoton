@@ -489,24 +489,31 @@ begin
   process(CLK50M)
   begin
 		if rising_edge(CLK50M) then
-
+		if clken12_5 = '1' then
 			if hsreg='1' and crtc_hs = '0' then
 				if vblankctr /= 0 then
 					vblankctr <= vblankctr - 1;
+					if vblankctr = 14 then
+						VS <= '1';
+					end if;
+					if vblankctr = 11 then
+						VS <= '0';
+					end if;
 				else
-					VS <= '0';
+					VBLANK <= '0';
 				end if;
-			end if;
 
-			vsreg<=crtc_vs;
-			if vsreg='0' and crtc_vs='1' then
-				vblankctr <= "0101";
-				VBLANK<='1';
-				VS <= '1';
+				vsreg<=crtc_vs;
+				if vsreg='0' and crtc_vs='1' then
+					vblankctr <= "1111";
+					VBLANK<='1';
+				end if;
+				-- original VBLANK
+				--if crtcma(9) = '1' then
+					--VBLANK <= '0';
+				--end if;
 			end if;
-			if crtcma(9) = '1' then
-				VBLANK <= '0';
-			end if;
+	 end if;
 	 end if;
   end process;
 
