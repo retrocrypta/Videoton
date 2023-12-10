@@ -11,6 +11,20 @@ module TVC_MiST(
 	output        VGA_HS,
 	output        VGA_VS,
 
+`ifdef USE_HDMI
+	output        HDMI_RST,
+	output  [7:0] HDMI_R,
+	output  [7:0] HDMI_G,
+	output  [7:0] HDMI_B,
+	output        HDMI_HS,
+	output        HDMI_VS,
+	output        HDMI_PCLK,
+	output        HDMI_DE,
+	inout         HDMI_SDA,
+	inout         HDMI_SCL,
+	input         HDMI_INT,
+`endif
+
 	input         SPI_SCK,
 	inout         SPI_DO,
 	input         SPI_DI,
@@ -60,6 +74,9 @@ module TVC_MiST(
 	output        I2S_LRCK,
 	output        I2S_DATA,
 `endif
+`ifdef SPDIF_AUDIO
+	output        SPDIF,
+`endif
 `ifdef USE_AUDIO_IN
 	input         AUDIO_IN,
 `endif
@@ -90,10 +107,17 @@ localparam VGA_BITS = 6;
 
 `ifdef BIG_OSD
 localparam bit BIG_OSD = 1;
-localparam SEP = "-;";
+`define SEP "-;",
 `else
 localparam bit BIG_OSD = 0;
-localparam SEP = "";
+`define SEP
+`endif
+
+`ifdef USE_HDMI
+localparam bit HDMI = 1;
+assign HDMI_RST = 1'b1;
+`else
+localparam bit HDMI = 0;
 `endif
 
 // remove this if the 2nd chip is actually used
@@ -118,13 +142,13 @@ localparam CONF_STR = {
 	"F,ROMCRT,Load Cartridge;",
 	"S0U,DSK,Mount Drive A;",
 	"S1U,DSK,Mount Drive B;",
-	SEP,
+	`SEP
 	"O23,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
-	SEP,
+	`SEP
 	"O45,CPU Speed,3.125MHz,6.25MHz,12.5MHz;",
 	"O6,Joystick Swap,Off,On;",
 	"O7,Composite Blend,Off,On;",
-	SEP,
+	`SEP
 	"T1,Cart Unload;",
 	"T0,Reset;",
 	"V,v1.0.",`BUILD_DATE
@@ -171,10 +195,21 @@ wire  [8:0] sd_buff_addr;
 wire  [1:0] img_mounted;
 wire [31:0] img_size;
 
+`ifdef USE_HDMI
+wire        i2c_start;
+wire        i2c_read;
+wire  [6:0] i2c_addr;
+wire  [7:0] i2c_subaddr;
+wire  [7:0] i2c_dout;
+wire  [7:0] i2c_din;
+wire        i2c_ack;
+wire        i2c_end;
+`endif
+
 user_io #(
 	.STRLEN(($size(CONF_STR)>>3)),
 	.ROM_DIRECT_UPLOAD(1'b0),
-	.FEATURES(32'h0 | (BIG_OSD << 13)))
+	.FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14)))
 user_io(
 	.clk_sys        (CLK_50M        ),
 	.conf_str       (CONF_STR       ),
@@ -192,7 +227,16 @@ user_io(
 	.joystick_0     (joystick_0     ),
 	.joystick_1     (joystick_1     ),
 	.status         (status         ),
-
+`ifdef USE_HDMI
+	.i2c_start      (i2c_start      ),
+	.i2c_read       (i2c_read       ),
+	.i2c_addr       (i2c_addr       ),
+	.i2c_subaddr    (i2c_subaddr    ),
+	.i2c_dout       (i2c_dout       ),
+	.i2c_din        (i2c_din        ),
+	.i2c_ack        (i2c_ack        ),
+	.i2c_end        (i2c_end        ),
+`endif
 	.clk_sd         ( CLK_50M       ),
 	.sd_lba         ( sd_lba        ),
 	.sd_rd          ( sd_rd         ),
@@ -248,7 +292,6 @@ end
 
 wire [5:0] R,G,B;
 wire       HSync, VSync, HBlank, VBlank;
-wire       blankn = ~(HBlank | VBlank);
 wire [7:0] audio;
 
 tvctop tvctop (
@@ -349,5 +392,80 @@ dacl(
 	);
 
 assign AUDIO_R = AUDIO_L;
-	
+
+`ifdef I2S_AUDIO
+i2s i2s (
+	.reset(1'b0),
+	.clk(CLK_50M),
+	.clk_rate(32'd50_000_000),
+
+	.sclk(I2S_BCK),
+	.lrclk(I2S_LRCK),
+	.sdata(I2S_DATA),
+
+	.left_chan({audio, audio}),
+	.right_chan({audio, audio})
+);
+`endif
+
+`ifdef SPDIF_AUDIO
+spdif spdif
+(
+	.clk_i(CLK_50M),
+	.rst_i(reset),
+	.clk_rate_i(32'd50_000_000),
+	.spdif_o(SPDIF),
+	.sample_i({audio, audio, audio, audio})
+);
+`endif
+
+`ifdef USE_HDMI
+i2c_master #(50_000_000) i2c_master (
+	.CLK         (CLK_50M),
+	.I2C_START   (i2c_start),
+	.I2C_READ    (i2c_read),
+	.I2C_ADDR    (i2c_addr),
+	.I2C_SUBADDR (i2c_subaddr),
+	.I2C_WDATA   (i2c_dout),
+	.I2C_RDATA   (i2c_din),
+	.I2C_END     (i2c_end),
+	.I2C_ACK     (i2c_ack),
+
+	//I2C bus
+	.I2C_SCL     (HDMI_SCL),
+	.I2C_SDA     (HDMI_SDA)
+);
+
+mist_video #(.COLOR_DEPTH(6), .SD_HCNT_WIDTH(12), .USE_BLANKS(1'b1), .OUT_COLOR_DEPTH(8), .BIG_OSD(BIG_OSD), .VIDEO_CLEANER(1'b1)) hdmi_video(
+	.clk_sys        ( CLK_50M          ),
+	.SPI_SCK        ( SPI_SCK          ),
+	.SPI_SS3        ( SPI_SS3          ),
+	.SPI_DI         ( SPI_DI           ),
+	.R              ( R                ),
+	.G              ( G                ),
+	.B              ( B                ),
+	.HBlank         ( HBlank           ),
+	.VBlank         ( VBlank           ),
+	.HSync          ( HSync            ),
+	.VSync          ( VSync            ),
+	.VGA_R          ( HDMI_R           ),
+	.VGA_G          ( HDMI_G           ),
+	.VGA_B          ( HDMI_B           ),
+	.VGA_VS         ( HDMI_VS          ),
+	.VGA_HS         ( HDMI_HS          ),
+	.VGA_DE         ( HDMI_DE          ),
+	.rotate         ( 2'b00            ),
+	.ce_divider     ( 3'd1             ),
+	.scandoubler_disable( 1'b0         ),
+	.scanlines      ( scanlines        ),
+	.blend          ( blend            ),
+	.ypbpr          ( 1'b0             ),
+	.no_csync       ( 1'b0             )
+	);
+
+assign HDMI_PCLK = CLK_50M;
+
+`endif
+
+
 endmodule 
