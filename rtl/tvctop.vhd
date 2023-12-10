@@ -20,8 +20,6 @@ use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-use work.mist.all;
-
 entity tvctop is
   Port (  CLK75M : in STD_LOGIC;
           CLK50M : in STD_LOGIC;
@@ -488,25 +486,31 @@ begin
   end process;
   
   -- vertical blanking
-  process(crtc_hs)
+  process(CLK50M)
   begin
-    if rising_edge(crtc_hs) then
-      vsreg<=crtc_vs;
-		if vsreg='0' and crtc_vs='1' then
-		  vblankctr <= "0000";
-		  VBLANK<='1';
-		end if;		
-		if vblank='1' then
-		  vblankctr <= vblankctr + 1;
-		  if vblankctr=5 then
-		    VBLANK<='0';
-		  end if;		
-		end if;
+		if rising_edge(CLK50M) then
+
+			if hsreg='1' and crtc_hs = '0' then
+				if vblankctr /= 0 then
+					vblankctr <= vblankctr - 1;
+				else
+					VS <= '0';
+				end if;
+			end if;
+
+			vsreg<=crtc_vs;
+			if vsreg='0' and crtc_vs='1' then
+				vblankctr <= "0101";
+				VBLANK<='1';
+				VS <= '1';
+			end if;
+			if crtcma(9) = '1' then
+				VBLANK <= '0';
+			end if;
 	 end if;
   end process;
 
   HS <= hspal;
-  VS <= VBLANK;
 
   cpudi <= --romdo when nrom='0' else
            --extromdo when nrom5='0' else
