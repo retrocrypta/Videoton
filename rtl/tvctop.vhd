@@ -42,7 +42,7 @@ entity tvctop is
                B : out STD_LOGIC_VECTOR(5 downto 0);
               HS : out STD_LOGIC;
               VS : out STD_LOGIC;
-          HBLANK : out STD_LOGIC;
+          HBLANK : buffer STD_LOGIC;
           VBLANK : out STD_LOGIC;
 
             AOUT : out STD_LOGIC_VECTOR(7 downto 0);
