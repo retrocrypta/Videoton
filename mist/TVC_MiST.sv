@@ -1,4 +1,4 @@
-module TVC_MiST(
+module guest_top(
 	input         CLOCK_27,
 `ifdef USE_CLOCK_50
 	input         CLOCK_50,

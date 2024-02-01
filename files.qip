@@ -1,0 +1,6 @@
+set_global_assignment -name VERILOG_FILE ../build_id.v
+set_global_assignment -name SYSTEMVERILOG_FILE ../TVC_MiST.sv
+set_global_assignment -name QIP_FILE ../mist-modules/mist.qip
+set_global_assignment -name VHDL_FILE ../pll.vhd
+set_global_assignment -name QIP_FILE ../rtl/TVC.qip
+set_global_assignment -name SDC_FILE ../TVC.sdc
